@@ -86,7 +86,7 @@ Reasons for the delay:
 
 # 3. Data Preprocessing
 
-## 3.1. Outliers and null value removal:
+## 3.1 - Outliers and null value removal
 
 
 ```{r}
@@ -138,7 +138,7 @@ flight_b <- remove_outliers(flight,c('Arrival_Delay_min','Carrier_Delay_min','We
 
 Number of rows after nulls and Outlier removal: `r nrow(flight_b)`
 
-### 3.2. Normality checks:
+## 3.2 - Normality checks
 
 
 ```{r}
@@ -164,16 +164,16 @@ Since these distributions are not normal, Parametric statistical studies cannot 
 
 # 4. SMART Questions & EDA 
 
+# SMART Q1
 “For top 5 most delayed airlines, can we identify major reasons and its trend over 6 months, so that it can help airlines to relocate proper resources and improve its operational efficiencies”
 
-### 4.1. Identifying top 5 airlines:
+## 4.1 - Identifying top 5 airlines:
 
 ```{r}
 #| fig-width: 20
 #| fig-height: 5
 ggplot(flight_b,aes(Carrier_name,Arrival_Delay_min))+geom_boxplot(aes(fill = Carrier_name ))+labs(title = "Box plots of Airlines flight delay distribution") + theme(plot.title = element_text(size = 25,hjust =0.5)) + stat_summary(aes(y = Arrival_Delay_min , label = round(..y.., 2)), 
                  fun.y = median, geom = "text") 
-
 ```
 
 
@@ -195,7 +195,7 @@ US Airways Inc.
 flight_5 <- flight_b[flight_b$Carrier_name %in% c('JetBlue Airways','United Air Lines Inc.','US Airways Inc.','American Airlines Inc.','American Eagle Airlines Inc.'),]
 ```
 
-### 4.2. Identifying major reasons for these 5 airlines:
+## 4.2 - Identifying major reasons for these 5 airlines:
 
 ```{r}
 library(ggplot2)
@@ -288,8 +288,7 @@ Analysis from above graph:
 5. Different airlines might need different strategies based on their delay profiles, for example JetBlue might focus on late aircraft issues, while American Airlines might prioritize carrier-related delays since American Airlines has the highest percentage compared to others.
 
 
-### 4.3. Identifying major reasons for these 5 airlines:
-
+## 4.3 - Identifying major reasons for these 5 airlines:
 
 
 ```{r}
@@ -337,7 +336,9 @@ Consistency of analysis over 6 month period:
 3. Most trends remain relatively stable across the 6-month period
 
 
-## SMART - 2
+# SMART Q2
+
+“Which U.S. airports consistently experience the highest cumulative delays across different delay causes (Carrier, Weather, NAS, Security, Late Aircraft) for both origin and destination flights, and how does this ranking vary on a monthly or seasonal basis over the observed period?”
 
 ```{r Filtering data, include=T}
 # Filtering Data
@@ -384,13 +385,16 @@ na_count <- colSums(is.na(flight_delays))
 
 
 ```{r Delay checks, include=T}
-# Checking all the rows if delay exists or not
+### Checking all the rows if delay exists or not
 flight_delays$outcome <- ifelse(rowSums(flight_delays == 0) == ncol(flight_delays), 1, 0)
 no_delay_rows <- flight_delays[flight_delays$outcome == 1, ]
 #head(no_delay_rows)
 ```
 
-## Frequency of top 10 Origin and Destination airports delay
+## 4.4 - Frequency of top 10 Origin and Destination airports delay
+
+To identify the airports with the highest delay frequency, we aggregated the data by origin and destination airports and calculated the total count of delays for each. Using the ggplot2 library, a bar chart was created to visualize these counts, with separate bars for origin and destination delays.
+
 ```{r Identifying frequency, include=T}
 origin_counts <- flight_delays %>%
   group_by(Origin) %>%
@@ -427,7 +431,13 @@ ggplot(final_counts, aes(x = reorder(Airport, Frequency), y = Frequency, fill = 
   scale_fill_manual(values = c("Origin" = "steelblue", "Destination" = "darkorange"))
 ```
 
-## Creating Heatmap to understand delay cause at top 10 airports
+Findings: 
+The bar chart illustrated that Chicago O'Hare International Airport (ORD), Dallas/Fort Worth International Airport (DFW), and Hartsfield-Jackson Atlanta International Airport (ATL) consistently had the highest delay frequencies. This visualization allows us to see which airports contribute most to delays, offering insight into which locations could benefit most from improvement initiatives. These airports serve as significant hubs, which likely increases the volume and frequency of delays due to their high operational demands.
+
+## 4.5 - Creating Heatmap to understand delay cause at top 10 airports
+
+To explore which specific delay causes are most prevalent at the top 10 airports, a heatmap was generated. We first isolated the delay causes for each airport and then aggregated them to calculate the total delay minutes per cause for each airport. The causes included Carrier delays, Weather delays, NAS (National Airspace System) delays, Security delays, and Late Aircraft delays.
+
 ```{r Identifying delay causes, include=T}
 top_origin_airports <- flight_delays %>%
   group_by(Origin) %>%
@@ -472,7 +482,12 @@ ggplot(heatmap_summary, aes(x = Airport, y = DelayType, fill = TotalDelay)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-## Identifying season in which delays occurs the most at top 10 airports
+Findings: The heatmap highlighted Late Aircraft as the leading cause of delays across most airports, followed by NAS delays. This suggests that delays in arriving aircraft often lead to further delays in departing flights. Weather and Carrier delays were less frequent, and Security delays had minimal impact. The use of colour intensity in the heatmap provided a clear view of where each delay type is concentrated, making it easier to pinpoint which airports are heavily affected by specific delay causes.
+
+## 4.6 -  Identifying season in which delays occurs the most at top 10 airports
+
+Lastly, to understand seasonal patterns, a bar chart was created to display the cumulative delay minutes across different seasons (Winter, Spring, Summer, and Fall) for each of the top 10 airports. This analysis helps in determining if certain seasons contribute more to delays, which could be attributed to seasonal weather changes, travel demand fluctuations, or operational factors.
+
 ```{r Identifying seasons, include=T}
 top_origin_airports <- flight_delays %>%
   group_by(Origin) %>%
@@ -513,7 +528,7 @@ ggplot(seasonal_delays, aes(x = Airport, y = TotalDelay, fill = Season)) +
   scale_fill_brewer(palette = "Set3")
 ```
 
-
+Findings: The seasonal bar chart revealed that winter had the highest delay minutes, followed by spring. Winter delays are expected due to adverse weather conditions that impact flight operations. This seasonal analysis underscores the importance of season-specific delay mitigation strategies, such as deploying additional resources or preparing contingency plans during peak delay seasons.
 
 ```{r}
 
@@ -542,7 +557,20 @@ carrier_delays <- summer_data %>%
 top_3_carriers <- head(carrier_delays, 3)
 ```
 
-## 4.4 - Top 3 Carriers Average Delays
+# SMART Q3
+“What are the top 3 carriers with the highest average delay times during peak summer months (June-August), and how do their delay patterns correlate with specific routes and time of day?”
+
+## 4.7 - Top 3 Carriers Average Delays
+
+The exploratory data analysis (EDA) represented by the bar chart focuses on
+understanding flight delay patterns for the top three U.S. carriers—United Airlines,American Airlines, SkyWest Airlines during peak summer travel months (June to August). The primary goal of this analysis is to identify three main questions and provide the reader an answer :-
+Identification of Top Delaying Airlines: Which three U.S. airlines experience the most average flight delays during the peak summer travel season?
+The routes facing the most delay: Listed 10 routes which face the most delay
+Time-of-Day Delay Patterns: How do the average delay times of these top three airlines differ across morning, afternoon, and evening flights?
+Answering the first sub- question of my SMART question it goes like:
+The motivation behind creating this specific plot stems from the well-known fact that summer months experience a surge in air traffic, often leading to increased delays due to factors like weather, congestion, and operational challenges. By analyzing the top carriers with the highest average delays we are also providing the average delay of each of the given carriers.
+Here the highest was shown by United Airlines (142.23 mins).
+
 ```{r}
 
 ggplot(top_3_carriers, aes(x = reorder(Unique_Carrier_Code, -TotalDelay), y = TotalDelay)) +
@@ -560,7 +588,18 @@ ggplot(top_3_carriers, aes(x = reorder(Unique_Carrier_Code, -TotalDelay), y = To
 
 summer_data$Hour <- as.numeric(format(strptime(sprintf("%04d", summer_data$Departure_Time),format = "%H%M"), "%H"))
 ```
-## 4.5 - Delay Patterns by Time of Day
+## 4.8 - Delay Patterns by Time of Day
+
+The second sub-question wanted to uncover the follow:
+The top 10 routes that face the highest delay during the months of Summer (June-August). Where I wanted the readers to understand the delay pattern on different routes and what is the potential reason for such delay.
+
+Here we found the top 3 routes to be as follows:
+SFO (San Francisco)-> JFK (John. F Kennedy)
+RDU(Raleigh-Durham International Airport) -> LGA (LaGuardia Airport, NY)
+PVD (Rhode Island T.F. Green International Airport)-> BWI (Baltimore/Washington International
+
+This result was based on the fact that people were traveling cross country to meet friends, family and also on holidays. This means the higher traffic was traveling to different parts of the country and such analysis helps airlines to work on making these routes more efficient and providing higher quality services here.
+
 ```{r}
 # Visualization 2: Delay Patterns by Time of Day
 hourly_delays <- summer_data %>%
@@ -590,7 +629,18 @@ route_delays <- summer_data %>%
   filter(flight >= 50) %>%  # Filter routes with minimum 50 flight
   arrange(desc(AvgDelay))
 ```
-## 4.6 - Top 10 Routes with Highest Delays
+
+
+## 4.9 - Top 10 Routes with Highest Delays
+
+The third sub-question tried to identify the delay pattern in the airlines based on the time of the day during the months of summer (June-August). 
+
+Here we try to the understand the delay by the airline during the different hour of the day based on the 24 - hour time window the findings from this plot aimed at providing the reader a more robust understanding of the delay patter by three airlines specifically:
+American Airlines, Skywest Airlines, United Airlines
+
+This showcased the following findings that American Airlines had the highest delay during early morning hours which averaged about more than 450 minutes followed by 400 minutes for United Airlines.
+
+This presented an understanding of why airlines face high delay during mornings which can be attributed to morning rush hours by tourists, overselling of morning tickets and also lower human efficiency hourly. 
 ```{r}
 
 top_10_routes <- head(route_delays, 10)
@@ -606,7 +656,7 @@ ggplot(top_10_routes,
   )
 ```
 
-```{r}
+```{r, include=T}
 # Correlation Analysis
 library(corrplot)
 
@@ -623,7 +673,7 @@ corrplot(correlation_matrix,
          tl.srt = 45)
 ```
 
-```{r}
+```{r, include=T}
 # Statistical Summary
 summary_stats <- summer_data %>%
   group_by(Unique_Carrier_Code) %>%
@@ -642,6 +692,9 @@ print(summary_stats)
 write.csv(summary_stats, "airline_delay_analysis.csv")
 ```
 
+# SMART Q4
+
+“What time of day do flights experience the highest frequency of delays? Are there specific hours when certain types of delays, such as (NAS, Security, or Late Aircraft) are more frequent?”
 
 ```{r, include=T}
 # Data Preprocessing and Summary Statistics
@@ -681,12 +734,14 @@ hourly_stats <- flight_b %>%
 print(hourly_stats)
 ```
 
-## 4.7 - Overall Delay pattern by hour
 
-This bar chart showcases Peak Delay Times, lowest delay period and gradual increase in delay for throughout the day. 
+## 4.10 - Overall Delay pattern by hour
 
-Conclusion - 
-Highest delay rates observed during late night and early morning hours (00:00–3:00) and late evening hours (18:00–23:00). Delay rate significantly drops around 5:00 AM, indicating fewer delays early in the morning. Steady increase in delay rate starting from morning hours (6:00) until afternoon, with a noticeable peak by late evening.
+The bar chart depicts the pattern of hourly flight delays, which provides insight into the peak and low-delay periods and trends throughout the day. Evidently, the delays are at their highest during late-night hours between 12:00 AM and 3:00 AM and late evening between 6:00 PM and 11:00 PM. Lastly, there is a significant decrease in delay rates around 5:00 AM, which provides evidence that early morning is a time of lowest delays, possibly due to lower flight volumes or smoother operational efficiency in those hours. This low-delay period identifies the optimal window for on-time departures, possibly due to fewer inbound flight dependencies and favorable early-morning weather patterns.
+
+The data shows that delay rates increase from about 6:00 AM and increase gradually throughout the day. The rate of delays rises in the afternoon and evening, peaking once more in late evening. This might indicate that compounding daily delays with increasing flight burden on airports, the weather effects, and possible network disruptions accumulate over time.
+
+In a nutshell, these results underline the advantages of early morning flight schedules in reducing delay risks. The pattern also shows there is operational stress during late-night and evening hours, which could guide airlines and airports in resource allocation and improvements in the management of flight schedules to maintain smooth operations.
 
 ```{r, include=T}
 ggplot(hourly_stats, aes(x = factor(hour), y = delay_rate, fill = delay_rate)) +
@@ -707,12 +762,14 @@ ggplot(hourly_stats, aes(x = factor(hour), y = delay_rate, fill = delay_rate)) +
 ```
 
 
-## 4.8 - Types of Delays by hour 
+## 4.11 - Types of Delays by hour 
 
-This time series line graph shows the delay type and which type is causing significant, moderate and limited impact.
+This time series line graph helps analyze the trend of various delay types on an hourly basis and contributes toward identifying the main contributors to flight delays. The dataset classifies delay causes into five main types: Late Aircraft, Carrier, Weather, NAS (National Airspace System), and Security.
 
-Conclusion -> 
-Most Dominant Delay type was Late Aircraft arrival on runway, Second Most common was Carrier Delays, Minimal Delay type was Security, Moderate Delay types were Weather and NAS.
+Summary - The most common cause of delays was the Late Aircraft category, which always peaked in delays at some peak hours. Such a delay with Late Aircraft normally results from the previous flights arriving late and thus affecting subsequent departures in a domino effect. The second most common cause of delays was related to carrier delays, associated with operational problems with the airlines themselves, showing periodic problems arising from poor airline management and resource scheduling. Moderate delays occurred from NAS and weather sources, both of which are largely exogenous and outside the ability to control such impacts. While moderate, weather delays have periodic peaks during weather conditions or certain times of the year, and NAS delays tend to vary according to airspace activity.
+Security delays were the least in all instances, likely due to stable security protocols and fewer unpredictable factors, which may indicate that security seldom added to overall delay times.
+
+Insights for Operational Improvements - Identifying Late Aircraft as the top cause emphasizes the importance of smoothing out turnaround processes and scheduling flexibility, so minor delays can be absorbed without causing the next flights to be delayed. Carrier delays having a large effect indicates possible enhancements in operational management to decrease their rate of occurrence. Furthermore, a focused approach to deal with the problems related to weather, like better forecasting, could temper these effects, especially during peak travel times. This breakdown will provide a panoramic view of stakeholders meant to address and prioritize resources to specific causes of delay.
 ```{r, include=T}
 delay_types <- hourly_stats %>%
   select(hour, carrier_delay, weather_delay, nas_delay, 
@@ -730,9 +787,13 @@ ggplot(delay_types, aes(x = hour, y = value, color = variable)) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-## 4.9 - Top 5 Airports Delay Analysis
+## 4.12 - Top 5 Airports Delay Analysis
 
-This code performs an analysis of delay rates across the top 5 busiest U.S. airports, specifically examining how delays vary by the hour of the day. It first identifies the top 5 airports by total flight count. For each of these airports, the code calculates the average delay rate and average delay time by hour. Finally, it generates a line plot showing the hourly delay rates for each of these airports, allowing for visual comparison of delay trends throughout the day. This analysis provides insight into peak delay hours and helps identify patterns specific to high-traffic airports.
+This analysis is on patterns of hour-by-hour delays for the five busiest airports in the U.S., pinpointing times of the day when delays are more common. The code first identifies the top five airports with the most flights from the `flight_b` data set, then proceeds to calculate the average delay rate (percentage of flights delayed) and the average delay time (minutes) for each hour of the day for each of those airports.
+
+The line chart below, from this analysis, visualizes the trends in how delay rates change by hour for each of these top airports, showing where peak delay times may be found and comparing trends across locations. Among the most compelling findings were that certain times of day—especially late afternoon and evening hours—tended to have higher delay rates, likely due to accumulated delays from earlier in the day or increased air traffic. Morning hours, on the other hand, typically have lower delay rates, probably due to fewer cumulative delays and a well-oiled operation.
+
+This will be useful to the airport management and the airlines for hedging specific times that require extra resources or changes in operations. Knowing these patterns for high-traffic airports begs the opportunity to develop strategies—targeted, effective, and efficient—to reduce delays during peak hours and improve the level of service for travelers. Further exploration could include more variables, such as meteorological conditions or seasonal fluctuations, to better understand the causes of delays at these airports.
 
 ```{r, include=T}
 top_airports <- flight_b %>%
