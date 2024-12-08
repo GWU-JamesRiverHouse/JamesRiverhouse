@@ -1,0 +1,313 @@
+---
+title: "Predicting and Analyzing U.S. Flight Delays: Identifying Key Factors and Improving Forecast Accuracy"
+Group: "JamesRiverhouse"
+Members: "Hema Puchakayala, Rasika Nilatkar, Sayyam Palrecha, Hussain Nathani"
+#date: "today"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+# SMART Question
+**What are the significant factors influencing total flight delays across the top 10 busiest U.S. airports over the observed period, and how do these factors vary by season?**
+
+```{r init, include=FALSE}
+# some of common options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+library(ezids)
+# knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+knitr::opts_chunk$set(echo = T, warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3)  
+# options(scipen=9, digits = 3) 
+# ‘scipen’: integer. A penalty to be applied when deciding to print numeric values in fixed or exponential notation.  Positive values bias towards fixed and negative towards scientific notation: fixed notation will be preferred unless it is more than ‘scipen’ digits wider.
+# use scipen=999 to prevent scientific notation at all times
+```
+
+### Understanding the dataset
+```{r Initial dataset, include=T}
+flight <- data.frame(read.csv("Flight_delay.csv"))
+str(flight)
+```
+
+### Necessary Libraries
+```{r Libraries, include=T}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(lubridate)
+```
+
+### Filtering Data
+```{r Filtering data, include=T}
+flight_data <- flight %>%
+  filter(!is.na(CarrierDelay) | !is.na(WeatherDelay) | 
+         !is.na(NASDelay) | !is.na(SecurityDelay) | 
+         !is.na(LateAircraftDelay))
+```
+
+### Formatting Date and adding Month and Season column
+```{r Formatting data, include=T}
+flight_data$Date <- as.Date(flight_data$Date, format = "%d-%m-%Y")
+flight_data_cleaned <- flight_data %>%
+  mutate(Month = month(Date, label = TRUE, abbr = TRUE),
+         Season = case_when(
+           Month %in% c("Dec", "Jan", "Feb") ~ "Winter",
+           Month %in% c("Mar", "Apr", "May") ~ "Spring",
+           Month %in% c("Jun", "Jul", "Aug") ~ "Summer",
+           Month %in% c("Sep", "Oct", "Nov") ~ "Fall"
+         ))
+```
+
+### Cleaning Dataframe
+```{r Cleaning data, include=T}
+flight_delays <- flight_data_cleaned %>%
+  filter(!is.na(CarrierDelay) | !is.na(WeatherDelay) | 
+         !is.na(NASDelay) | !is.na(SecurityDelay) | 
+         !is.na(LateAircraftDelay)) %>%
+  select(Origin, Dest, CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, Month, Season)
+```
+
+### Summary of cleaned data
+```{r Summary, include=T}
+knitr::kable(summary(flight_delays))
+```
+
+### Checking NA count
+```{r Checking NA values, include=T} 
+na_count <- colSums(is.na(flight_delays))
+print(na_count)
+```
+
+### Head of Cleaned data
+```{r Cleaned data, include=T}
+head(flight_delays)
+```
+
+### Checking all the rows if delay exists or not
+```{r Delay checks, include=T}
+flight_delays$outcome <- ifelse(rowSums(flight_delays == 0) == ncol(flight_delays), 1, 0)
+no_delay_rows <- flight_delays[flight_delays$outcome == 1, ]
+head(no_delay_rows)
+```
+
+### Frequency of top 10 Origin and Destination airports delay
+```{r Identifying frequency, include=T}
+origin_counts <- flight_delays %>%
+  group_by(Origin) %>%
+  summarise(Frequency = n()) %>%
+  arrange(desc(Frequency)) %>%
+  mutate(Type = "Origin")
+
+dest_counts <- flight_delays %>%
+  group_by(Dest) %>%
+  summarise(Frequency = n()) %>%
+  arrange(desc(Frequency)) %>%
+  mutate(Type = "Destination")
+
+origin_counts <- rename(origin_counts, Airport = Origin)
+dest_counts <- rename(dest_counts, Airport = Dest)
+
+combined_counts <- bind_rows(origin_counts, dest_counts)
+
+top_airports <- combined_counts %>%
+  group_by(Airport) %>%
+  summarise(TotalFrequency = sum(Frequency)) %>%
+  arrange(desc(TotalFrequency)) %>%
+  slice(1:10)
+
+final_counts <- combined_counts %>%
+  filter(Airport %in% top_airports$Airport)
+
+ggplot(final_counts, aes(x = reorder(Airport, Frequency), y = Frequency, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 10 Airports by Delay Frequency (Origin vs Destination)",
+       x = "Airport", y = "Delay Frequency") +
+  theme_minimal() +
+  coord_flip() +
+  scale_fill_manual(values = c("Origin" = "steelblue", "Destination" = "darkorange"))
+```
+
+### Creating Heatmap to understand delay cause at top 10 airports
+```{r Identifying delay causes, include=T}
+top_origin_airports <- flight_delays %>%
+  group_by(Origin) %>%
+  summarize(TotalDelay = sum(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, na.rm = TRUE)) %>%
+  arrange(desc(TotalDelay)) %>%
+  slice_head(n = 10) %>%
+  pull(Origin)
+
+top_dest_airports <- flight_delays %>%
+  group_by(Dest) %>%
+  summarize(TotalDelay = sum(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, na.rm = TRUE)) %>%
+  arrange(desc(TotalDelay)) %>%
+  slice_head(n = 10) %>%
+  pull(Dest)
+
+top_airports <- unique(c(top_origin_airports, top_dest_airports))
+
+filtered_delays <- flight_delays %>%
+  filter(Origin %in% top_airports | Dest %in% top_airports)
+
+heatmap_data <- filtered_delays %>%
+  select(Origin, Dest, CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay) %>%
+  pivot_longer(cols = c(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay),
+               names_to = "DelayType",
+               values_to = "TotalDelay") %>%
+  mutate(Airport = ifelse(Origin %in% top_airports, Origin, Dest)) %>%
+  filter(!is.na(TotalDelay))
+
+heatmap_summary <- heatmap_data %>%
+  group_by(Airport, DelayType) %>%
+  summarize(TotalDelay = sum(TotalDelay, na.rm = TRUE)) %>%
+  ungroup()
+
+ggplot(heatmap_summary, aes(x = Airport, y = DelayType, fill = TotalDelay)) +
+  geom_tile(color = "black") +
+  scale_fill_gradient(low = "white", high = "blue", na.value = "grey50") +
+  labs(title = "Heatmap of Delay Causes at Top 10 Airports",
+       x = "Airport",
+       y = "Delay Cause",
+       fill = "Total Delay Minutes") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Identifying season in which delays occurs the most at top 10 airports
+```{r Identifying seasons, include=T}
+top_origin_airports <- flight_delays %>%
+  group_by(Origin) %>%
+  summarize(TotalDelay = sum(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, na.rm = TRUE)) %>%
+  arrange(desc(TotalDelay)) %>%
+  slice_head(n = 10) %>%
+  pull(Origin)
+
+top_dest_airports <- flight_delays %>%
+  group_by(Dest) %>%
+  summarize(TotalDelay = sum(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, na.rm = TRUE)) %>%
+  arrange(desc(TotalDelay)) %>%
+  slice_head(n = 10) %>%
+  pull(Dest)
+
+top_airports <- unique(c(top_origin_airports, top_dest_airports))
+
+filtered_delays <- flight_delays %>%
+  filter(Origin %in% top_airports | Dest %in% top_airports)
+
+print(colnames(filtered_delays))
+
+seasonal_delays <- filtered_delays %>%
+  select(Origin, Dest, CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay, Season) %>%
+
+  pivot_longer(cols = c(CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay),
+               names_to = "DelayType", values_to = "TotalDelay") %>%
+  mutate(Airport = ifelse(Origin %in% top_airports, Origin, Dest)) %>%
+  group_by(Airport, Season) %>%
+  summarize(TotalDelay = sum(TotalDelay, na.rm = TRUE), .groups = 'drop')
+
+ggplot(seasonal_delays, aes(x = Airport, y = TotalDelay, fill = Season)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Seasonal Delays for Top 10 Airports",
+       x = "Airport", y = "Total Delay (Minutes)") +
+  theme_minimal() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set3")
+```
+
+### Two-Sample T-Test: Comparing Delays Between Two Airports
+```{r T-test, include=T}
+airport_data <- flight_delays %>% filter(Origin %in% c("ORD", "DFW"))
+
+t_test_result <- t.test(
+  LateAircraftDelay ~ Origin,
+  data = airport_data,
+  alternative = "two.sided")
+
+print(t_test_result)
+```
+
+### ANOVA: Comparing Mean Delays Across Seasons
+```{r Anova-test, include=T}
+anova_result <- aov(CarrierDelay ~ Season, data = flight_delays)
+summary(anova_result)
+```
+
+### Tukey HSD test for identifying which pairs of seasons differ significantly
+```{r Tukey-test, include=T}
+tukey_result <- TukeyHSD(anova_result)
+
+print(tukey_result)
+```
+
+### Linear Regression Model to Analyze Total Flight Delays Across Airports and Seasons
+```{r LM, include=T}
+flight_data_cleaned <- seasonal_delays %>%
+  group_by(Airport, Season) %>%
+  summarize(TotalDelay = sum(TotalDelay, na.rm = TRUE), .groups = 'drop')
+
+flight_data_cleaned$Season <- factor(flight_data_cleaned$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+
+model <- lm(TotalDelay ~ Airport + Season, data = flight_data_cleaned)
+
+xkabledply(model, title = paste("Model :", format(formula(model)) ) )
+summary(model)
+```
+
+```{r}
+predictions <- predict(model, newdata = flight_data_cleaned)
+
+predictions
+```
+
+### Visualizing Predictions versus Actual values
+```{r Predictions, include=T}
+plot(flight_data_cleaned$TotalDelay, type = "p", col = "blue", pch = 16, cex = 1.2,
+     xlab = "Observation Index", ylab = "TotalDelay",
+     main = "Comparison of Actual and Predicted Total Delays")
+
+points(predictions, col = "red", pch = 17, cex = 1.2)
+
+legend("topright", legend = c("Actual", "Predicted"),
+       col = c("blue", "red"), pch = c(16, 17), cex = 0.8)
+```
+
+
+```{r}
+par(mfrow = c(2, 2))
+plot(model)
+```
+
+```{r}
+mse <- mean(model$residuals^2)
+print(mse)
+
+rmse <- sqrt(mse)
+print(rmse)
+```
+
+# Final Conclusion:
+
+1. Key Factors Influencing Flight Delays:
+Late Aircraft Delays, NAS Delays, and Carrier Delays are the primary contributors to total flight delays. Weather-related delays occur less frequently, while Security Delays are rare.
+Airports such as O'Hare International (ORD), Dallas/Fort Worth International (DFW), and Hartsfield-Jackson Atlanta International (ATL) consistently experience the highest cumulative delays due to these factors.
+
+2. Seasonal Variations:
+The Winter season experiences higher delays compared to other seasons, with Summer seeing fewer delays, as confirmed by the ANOVA test and the Tukey HSD test.
+
+3. Airport-Specific Findings:
+O'Hare International (ORD) and Dallas/Fort Worth International (DFW) are outliers with consistently higher delays, as shown by the T-test results.
+On the other hand, airports like JFK and LGA experience lower delays, making them more efficient in terms of total delays compared to others.
+
+4. Linear Regression Model Insights:
+Airports like JFK and LGA experience significantly lower delays compared to the baseline, while ORD experiences higher delays.
+Season is a significant predictor of delays, with Summer having fewer delays than Winter. The model's Multiple R-squared value of 0.891 indicates a strong fit, suggesting that these factors together explain a significant portion of the variation in total delays.
+
+5. Model Performance:
+The Mean Squared Error (MSE) of 3.58e+10 and Root Mean Squared Error (RMSE) of 189,221 indicate a reasonable fit, with the model performing adequately in predicting total flight delays across airports and seasons.
